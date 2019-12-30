@@ -6,7 +6,10 @@
  */
 import { stubMethod } from '@salesforce/ts-sinon';
 import { expect } from 'chai';
+import sinon = require('sinon');
 import { Crypto } from '../../src/crypto';
+import { SfdxError } from '../../src/exported';
+import { Messages } from '../../src/messages';
 import { testSetup } from '../../src/testSetup';
 
 // Setup the test environment.
@@ -129,6 +132,15 @@ describe('CryptoTest', function() {
       await crypto.init();
       secret = crypto.encrypt(undefined);
       expect(secret).to.equal(undefined);
+    });
+
+    it('Decrypt should fail, error handling', () => {
+      const sandbox = sinon.createSandbox();
+      const message = Messages.loadMessages('@salesforce/core', 'crypto').getMessage('MacKeychainOutOfSync');
+      const errorMessage = SfdxError.wrap(new Error(message));
+      sandbox.stub(Crypto.prototype, 'decrypt').throws(errorMessage);
+      expect(() => Crypto.prototype.decrypt.call(secret)).to.throw(errorMessage);
+      sandbox.restore();
     });
   }
 });
