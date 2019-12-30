@@ -152,12 +152,12 @@ export class Crypto extends AsyncOptionalCreatable<CryptoOptions> {
         dec = decipher.update(secret, 'hex', 'utf8');
         dec += decipher.final('utf8');
       } catch (e) {
-        const errMsg = this.messages.getMessage('AuthDecryptError', [e.message]);
         const useGenericUnixKeychain =
           env.getBoolean('SFDX_USE_GENERIC_UNIX_KEYCHAIN') || env.getBoolean('USE_GENERIC_UNIX_KEYCHAIN');
         if (os.platform() === 'darwin' && !useGenericUnixKeychain) {
           e.message += Messages.loadMessages('salesforce-alm', 'crypto').getMessage('MacKeychainOutOfSync');
         }
+        const errMsg = this.messages.getMessage('AuthDecryptError', [e.message]);
         throw new SfdxError(errMsg, 'AuthDecryptError');
       }
       return dec;
