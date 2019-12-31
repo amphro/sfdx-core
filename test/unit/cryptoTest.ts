@@ -6,7 +6,8 @@
  */
 import { stubMethod } from '@salesforce/ts-sinon';
 import { expect } from 'chai';
-import sinon = require('sinon');
+import * as _crypto from 'crypto';
+import * as os from 'os';
 import { Crypto } from '../../src/crypto';
 import { SfdxError } from '../../src/exported';
 import { Messages } from '../../src/messages';
@@ -134,13 +135,38 @@ describe('CryptoTest', function() {
       expect(secret).to.equal(undefined);
     });
 
-    it('Decrypt should fail, error handling', () => {
-      const sandbox = sinon.createSandbox();
-      const message = Messages.loadMessages('@salesforce/core', 'crypto').getMessage('MacKeychainOutOfSync');
-      const errorMessage = SfdxError.wrap(new Error(message));
-      sandbox.stub(Crypto.prototype, 'decrypt').throws(errorMessage);
-      expect(() => Crypto.prototype.decrypt.call(secret)).to.throw(errorMessage);
-      sandbox.restore();
+    it('Decrypt should fail without env var, and add extra message', async () => {
+      const message: string = Messages.loadMessages('@salesforce/core', 'crypto').getMessage('MacKeychainOutOfSync');
+      const errorMessage: object = SfdxError.wrap(new Error(message));
+      stubMethod($$.SANDBOX, os, 'platform').returns('darwin');
+      stubMethod($$.SANDBOX, crypto, 'decrypt').callsFake(() => ({
+        setAuthTag: () => {
+          throw errorMessage;
+        },
+        update: () => {},
+        final: () => {}
+      }));
+      crypto = new Crypto();
+      await crypto.init();
+      expect(() => crypto.decrypt('abcdefghijklmnopqrstuvwxyz:123456789')).to.throw(message);
+    });
+
+    it('Decrypt should fail but not add extra message with env var', async () => {
+      process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN = 'false';
+      const message: string = Messages.loadMessages('@salesforce/core', 'encryption').getMessage('AuthDecryptError');
+      const errorMessage: object = SfdxError.wrap(new Error(message));
+      stubMethod($$.SANDBOX, os, 'platform').returns('darwin');
+      stubMethod($$.SANDBOX, crypto, 'decrypt').callsFake(() => ({
+        setAuthTag: () => {
+          throw errorMessage;
+        },
+        update: () => {},
+        final: () => {}
+      }));
+      crypto = new Crypto();
+      await crypto.init();
+      expect(() => crypto.decrypt(secret)).to.not.throw(message);
+      delete process.env.SFDX_USE_GENERIC_UNIX_KEYCHAIN;
     });
   }
 });
